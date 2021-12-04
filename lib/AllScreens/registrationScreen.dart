@@ -1,15 +1,17 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:rider_app/AllScreens/registrationScreen.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:rider_app/AllScreens/loginScreen.dart';
+import 'package:rider_app/AllScreens/mainscreen.dart';
 import 'package:rider_app/AllWidgets/progressDialog.dart';
+import 'package:rider_app/main.dart';
 
-import '../main.dart';
-import 'mainscreen.dart';
-
-class LoginScreen extends StatelessWidget {
-  static const String idScreen = "login";
+class RegistrationScreen extends StatelessWidget {
+  static const String idScreen = "register";
+  TextEditingController nameTextEditingController = TextEditingController();
   TextEditingController emailTextEditingController = TextEditingController();
+  TextEditingController phoneTextEditingController = TextEditingController();
   TextEditingController passwordTextEditingController = TextEditingController();
   @override
   Widget build(BuildContext context) {
@@ -22,17 +24,17 @@ class LoginScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SizedBox(
-                height: 35.0,
+                height: 10.0,
               ),
               Image(
                 image: AssetImage("images/logo.png"),
                 width: 390.0,
-                height: 250.0,
+                height: 200.0,
                 alignment: Alignment.center,
               ),
               SizedBox(height: 15.0),
               Text(
-                "Login as Rider",
+                "Register as Rider",
                 style: TextStyle(
                   fontSize: 24.0,
                   fontFamily: "Brand Bold",
@@ -43,6 +45,23 @@ class LoginScreen extends StatelessWidget {
                 padding: EdgeInsets.all(20.0),
                 child: Column(
                   children: [
+                    SizedBox(height: 1.0),
+                    TextField(
+                      controller: nameTextEditingController,
+                      keyboardType: TextInputType.text,
+                      decoration: InputDecoration(
+                        labelText: "Name",
+                        labelStyle: TextStyle(
+                          fontSize: 14.0,
+                        ),
+                        hintStyle: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 10.0,
+                        ),
+                      ),
+                      style: TextStyle(fontSize: 14.0),
+                    ),
+                    SizedBox(height: 1.0),
                     SizedBox(height: 1.0),
                     TextField(
                       controller: emailTextEditingController,
@@ -59,6 +78,23 @@ class LoginScreen extends StatelessWidget {
                       ),
                       style: TextStyle(fontSize: 14.0),
                     ),
+                    SizedBox(height: 1.0),
+                    TextField(
+                      controller: phoneTextEditingController,
+                      keyboardType: TextInputType.phone,
+                      decoration: InputDecoration(
+                        labelText: "phone",
+                        labelStyle: TextStyle(
+                          fontSize: 14.0,
+                        ),
+                        hintStyle: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 10.0,
+                        ),
+                      ),
+                      style: TextStyle(fontSize: 14.0),
+                    ),
+                    SizedBox(height: 1.0),
                     SizedBox(height: 1.0),
                     TextField(
                       controller: passwordTextEditingController,
@@ -78,7 +114,7 @@ class LoginScreen extends StatelessWidget {
                     SizedBox(height: 10.0),
                     ElevatedButton(
                       child: Text(
-                        "Login",
+                        "Create account.",
                         style:
                             TextStyle(fontSize: 18.0, fontFamily: "Brand Bold"),
                       ),
@@ -94,14 +130,23 @@ class LoginScreen extends StatelessWidget {
                             borderRadius: BorderRadius.circular(24.0)),
                       ),
                       onPressed: () {
-                        if (!emailTextEditingController.text.contains("@")) {
+                        if (nameTextEditingController.text.length < 3) {
+                          displayToastMessage(
+                              "Name must be at least 3 characters.", context);
+                        } else if (!emailTextEditingController.text
+                            .contains("@")) {
                           displayToastMessage(
                               "Email address is not valid.", context);
-                        } else if (passwordTextEditingController.text.isEmpty) {
+                        } else if (phoneTextEditingController.text.isEmpty) {
                           displayToastMessage(
-                              "Password is mandatory.", context);
+                              "Phone number is mandatory.", context);
+                        } else if (passwordTextEditingController.text.length <
+                            6) {
+                          displayToastMessage(
+                              "Password must be at least 6 characters.",
+                              context);
                         } else {
-                          loginAndAuthenticateUser(context);
+                          registerNewUser(context);
                         }
                       },
                     ),
@@ -111,9 +156,9 @@ class LoginScreen extends StatelessWidget {
               TextButton(
                   onPressed: () {
                     Navigator.pushNamedAndRemoveUntil(
-                        context, RegistrationScreen.idScreen, (route) => false);
+                        context, LoginScreen.idScreen, (route) => false);
                   },
-                  child: Text("Do not have an account? Register Here."))
+                  child: Text("Already an account? Login Here."))
             ],
           ),
         ),
@@ -122,17 +167,18 @@ class LoginScreen extends StatelessWidget {
   }
 
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
-  void loginAndAuthenticateUser(BuildContext context) async {
+  void registerNewUser(BuildContext context) async {
     showDialog(
         context: context,
         barrierDismissible: false,
         builder: (BuildContext context) {
           return ProgressDialog(
-            message: "Authenticating, Please wait...",
+            message: "Registering, Please wait...",
           );
         });
+
     final User firebaseUser = (await _firebaseAuth
-            .signInWithEmailAndPassword(
+            .createUserWithEmailAndPassword(
                 email: emailTextEditingController.text,
                 password: passwordTextEditingController.text)
             .catchError((errMsg) {
@@ -142,23 +188,34 @@ class LoginScreen extends StatelessWidget {
         .user;
 
     if (firebaseUser != null) {
-      usersRef.child(firebaseUser.uid).once().then((DataSnapshot snap) {
-        if (snap.value != null) {
-          Navigator.pushNamedAndRemoveUntil(
-              context, MainScreen.idScreen, (route) => false);
-          displayToastMessage("You are logged in now.", context);
-        } else {
-          Navigator.pop(context);
-          _firebaseAuth.signOut();
-          displayToastMessage(
-              "No record exists for this user, Please create new account.",
-              context);
-        }
-      });
+      // user created
+
+      Map userDataMap = {
+        "name": nameTextEditingController.text.trim(),
+        "email": emailTextEditingController.text.trim(),
+        "phone": phoneTextEditingController.text.trim(),
+      };
+      usersRef.child(firebaseUser.uid).set(userDataMap);
+      displayToastMessage(
+          "Congratulations, your account has been created.", context);
+      Navigator.pushNamedAndRemoveUntil(
+          context, MainScreen.idScreen, (route) => false);
     } else {
       Navigator.pop(context);
       // error occurred = display error message
-      displayToastMessage("Error occurred, cannot sign in", context);
+      displayToastMessage("New user account has not been created", context);
     }
   }
+}
+
+displayToastMessage(String message, BuildContext context) {
+  print("toast message: " + message);
+  return Fluttertoast.showToast(
+      msg: message,
+      toastLength: Toast.LENGTH_SHORT,
+      gravity: ToastGravity.CENTER,
+      timeInSecForIosWeb: 1,
+      backgroundColor: Colors.red,
+      textColor: Colors.white,
+      fontSize: 16.0);
 }
